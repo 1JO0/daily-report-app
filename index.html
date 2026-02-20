@@ -14,13 +14,30 @@
     
     <style>
         body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
+        /* Hide scrollbar for emoji picker but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Animation for Edit Mode */
+        @keyframes pulse-border {
+            0% { border-color: rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(59, 130, 246, 1); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+            100% { border-color: rgba(59, 130, 246, 0.5); }
+        }
+        .animate-pulse-border {
+            animation: pulse-border 2s infinite;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 transition-colors duration-300">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         // --- Icons (SVG Components) ---
         const Icon = ({ path, size = 20, className = "" }) => (
@@ -42,6 +59,15 @@
             Calendar: (props) => <Icon {...props} path={<><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></>} />,
             Copy: (props) => <Icon {...props} path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></>} />,
             Check: (props) => <Icon {...props} path={<><polyline points="20 6 9 17 4 12"></polyline></>} />,
+            X: (props) => <Icon {...props} path={<><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>} />,
+            Settings: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></>} />,
+            Download: (props) => <Icon {...props} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></>} />,
+            Upload: (props) => <Icon {...props} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></>} />,
+            ArrowLeft: (props) => <Icon {...props} path={<><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></>} />,
+            ArrowRight: (props) => <Icon {...props} path={<><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></>} />,
+            ArrowLeftRight: (props) => <Icon {...props} path={<><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></>} />,
+            Edit3: (props) => <Icon {...props} path={<><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></>} />,
+            Bold: (props) => <Icon {...props} path={<><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path></>} />,
         };
 
         // --- Constants & Types ---
@@ -52,7 +78,49 @@
             { id: 't4', title: 'お散歩', emoji: '🚶', defaultDetails: "30分 リフレッシュ" }
         ];
 
-        const COMMON_EMOJIS = ['⚡️', '📘', '💪', '💻', '🚶', '🎨', '🗣️', '📝', '🥗', '💤', '✅', '🔥'];
+        const COMMON_EMOJIS = ['⚡️', '📘', '💪', '💻', '🚶', '🎨', '🗣️', '📝', '🥗', '💤', '✅', '🔥', '✨', '🚀', '💡', '🎵', '🏃', '🏋️', '🧘', '🍳'];
+
+        // --- Sub Components ---
+        
+        // Custom Emoji Picker Component
+        const EmojiPicker = ({ emoji, onEmojiChange, isOpen, onToggle, onClose, isDarkMode }) => {
+            const wrapperRef = useRef(null);
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+                        onClose();
+                    }
+                };
+                if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }, [isOpen, onClose]);
+
+            return (
+                <div className="relative" ref={wrapperRef}>
+                    <button onClick={onToggle} className={`text-2xl w-10 h-10 flex items-center justify-center rounded hover:bg-black/5 transition-colors ${isOpen ? 'bg-black/5 dark:bg-white/10' : ''}`} title="絵文字を変更">
+                        {emoji || '⚡️'}
+                    </button>
+                    {isOpen && (
+                        <div className={`absolute top-full left-0 mt-2 z-50 w-64 p-3 rounded-xl shadow-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-bold opacity-70">絵文字を選択または入力</span>
+                                <button onClick={onClose} className="p-1 hover:bg-black/10 rounded-full"><Icons.X size={14}/></button>
+                            </div>
+                            <div className={`flex items-center gap-2 mb-3 p-2 rounded border ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-300'}`}>
+                                <input type="text" value={emoji} onChange={(e) => onEmojiChange(e.target.value)} className="bg-transparent w-full text-center font-bold focus:outline-none" placeholder="自由入力" />
+                            </div>
+                            <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto no-scrollbar">
+                                {COMMON_EMOJIS.map(e => (
+                                    <button key={e} onClick={() => { onEmojiChange(e); onClose(); }} className={`p-1.5 rounded text-lg hover:scale-110 transition-transform ${emoji === e ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                                        {e}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
 
         // --- Main Application Component ---
         function App() {
@@ -61,9 +129,25 @@
             const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
             const [isDarkMode, setIsDarkMode] = useState(false);
             const [copied, setCopied] = useState(false);
+            
+            // New Template Form
             const [showTemplateForm, setShowTemplateForm] = useState(false);
             const [newTemplateTitle, setNewTemplateTitle] = useState('');
             const [newTemplateEmoji, setNewTemplateEmoji] = useState('⚡️');
+            
+            // Reorder & Edit Mode
+            const [isReorderMode, setIsReorderMode] = useState(false);
+            const [isEditMode, setIsEditMode] = useState(false);
+            
+            // Editing State
+            const [editingTemplate, setEditingTemplate] = useState(null);
+
+            // Settings Modal
+            const [showSettings, setShowSettings] = useState(false);
+            const fileInputRef = useRef(null);
+
+            // UI State
+            const [activeEmojiPicker, setActiveEmojiPicker] = useState(null); 
             
             // Date State
             const [reportDate, setReportDate] = useState(() => {
@@ -81,7 +165,6 @@
                 if (savedActivities) setActivities(JSON.parse(savedActivities));
                 if (savedTemplates) setTemplates(JSON.parse(savedTemplates));
                 
-                // Dark mode check
                 if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                     setIsDarkMode(true);
                 }
@@ -105,8 +188,10 @@
                 }
             }, [isDarkMode]);
 
-            // Actions
+            // --- Actions ---
+
             const addActivity = (template) => {
+                if (isReorderMode || isEditMode) return; 
                 const newActivity = {
                     id: crypto.randomUUID(),
                     title: template ? template.title : '',
@@ -124,9 +209,7 @@
                 setActivities(activities.filter(act => act.id !== id));
             };
 
-            const clearAll = () => {
-                setActivities([]);
-            };
+            const clearAll = () => setActivities([]);
 
             const saveAsTemplate = (activity) => {
                 const newTemplate = {
@@ -152,7 +235,113 @@
                 };
                 setTemplates([...templates, newTemplate]);
                 setNewTemplateTitle('');
+                setNewTemplateEmoji('⚡️');
                 setShowTemplateForm(false);
+            };
+
+            // Bold Tag Insertion
+            const insertBoldTag = (id) => {
+                const textarea = document.getElementById(`details-${id}`);
+                if (!textarea) return;
+
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const text = textarea.value;
+                
+                const before = text.substring(0, start);
+                const selected = text.substring(start, end);
+                const after = text.substring(end);
+                
+                // If selected text is already bolded (surrounded by **), remove them
+                // This is a simple check, could be improved
+                if (before.endsWith('**') && after.startsWith('**')) {
+                    const newText = before.slice(0, -2) + selected + after.slice(2);
+                    updateActivity(id, 'details', newText);
+                    setTimeout(() => {
+                        textarea.focus();
+                        textarea.setSelectionRange(start - 2, start - 2 + selected.length);
+                    }, 0);
+                } else {
+                    const newText = before + `**${selected}**` + after;
+                    updateActivity(id, 'details', newText);
+                    setTimeout(() => {
+                        textarea.focus();
+                        if (selected.length === 0) {
+                            textarea.setSelectionRange(start + 2, start + 2);
+                        } else {
+                            textarea.setSelectionRange(start + 2 + selected.length + 2, start + 2 + selected.length + 2);
+                        }
+                    }, 0);
+                }
+            };
+
+            // Template Editing Logic
+            const handleTemplateClick = (template) => {
+                if (isEditMode) {
+                    setEditingTemplate({...template});
+                } else if (!isReorderMode) {
+                    addActivity(template);
+                }
+            };
+
+            const saveTemplateChanges = () => {
+                if (!editingTemplate || !editingTemplate.title) return;
+                setTemplates(templates.map(t => t.id === editingTemplate.id ? editingTemplate : t));
+                setEditingTemplate(null);
+                setIsEditMode(false);
+            };
+
+            // Reorder Logic
+            const moveTemplate = (index, direction) => {
+                const newTemplates = [...templates];
+                const targetIndex = index + direction;
+                if (targetIndex < 0 || targetIndex >= newTemplates.length) return;
+                
+                const temp = newTemplates[targetIndex];
+                newTemplates[targetIndex] = newTemplates[index];
+                newTemplates[index] = temp;
+                setTemplates(newTemplates);
+            };
+
+            // Backup & Restore Logic
+            const handleExportSettings = () => {
+                const data = {
+                    templates: templates,
+                    activities: activities, // Optional: saving current draft as well
+                    version: 1,
+                    exportedAt: new Date().toISOString()
+                };
+                const jsonString = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ichijo-report-backup-${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            const handleImportSettings = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (data.templates) setTemplates(data.templates);
+                        if (data.activities) setActivities(data.activities); // Restore draft if present
+                        alert('設定を復元しました！');
+                        setShowSettings(false);
+                    } catch (err) {
+                        alert('ファイルの読み込みに失敗しました。正しいJSONファイルか確認してください。');
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = ''; // Reset input
             };
 
             // Generate Markdown
@@ -166,7 +355,7 @@
                 if (activities.length === 0) return `${headerSection}（活動内容がまだありません）`;
 
                 const bodySection = activities.map(act => {
-                    const header = `⚡️${act.title}${act.emoji ? ` ${act.emoji}` : ''}`;
+                    const header = `## ${act.emoji} ${act.title}`;
                     const body = act.details
                         .split('\n')
                         .map(line => line.trim())
@@ -187,7 +376,6 @@
                         setTimeout(() => setCopied(false), 2000);
                     });
                 } else {
-                    // Fallback
                     const textArea = document.createElement("textarea");
                     textArea.value = text;
                     document.body.appendChild(textArea);
@@ -213,9 +401,14 @@
                                 今日の成果を最速でDiscordへ。
                             </p>
                         </div>
-                        <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2 rounded-full ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-slate-200'} shadow-sm transition-all`}>
-                            {isDarkMode ? <Icons.Sun size={20} /> : <Icons.Moon size={20} />}
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowSettings(true)} className={`p-2 rounded-full ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-slate-200'} shadow-sm transition-all`} title="設定・バックアップ">
+                                <Icons.Settings size={20} />
+                            </button>
+                            <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2 rounded-full ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-slate-200'} shadow-sm transition-all`}>
+                                {isDarkMode ? <Icons.Sun size={20} /> : <Icons.Moon size={20} />}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -226,42 +419,110 @@
                             {/* Templates */}
                             <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
                                 <div className="flex justify-between items-center mb-4">
-                                    <h2 className="font-bold flex items-center gap-2 text-sm uppercase tracking-wider opacity-70">
-                                        <Icons.GripVertical size={16} /> クイック追加
-                                    </h2>
-                                    <button onClick={() => setShowTemplateForm(!showTemplateForm)} className="text-xs text-blue-500 hover:text-blue-400 font-medium">
-                                        {showTemplateForm ? '閉じる' : '+ カスタム登録'}
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="font-bold flex items-center gap-2 text-sm uppercase tracking-wider opacity-70">
+                                            <Icons.GripVertical size={16} /> クイック追加
+                                        </h2>
+                                        
+                                        {/* Toggle Buttons */}
+                                        <div className="flex bg-slate-200 dark:bg-slate-700 rounded p-0.5">
+                                            <button 
+                                                onClick={() => { setIsReorderMode(!isReorderMode); setIsEditMode(false); }}
+                                                className={`text-xs px-2 py-1 rounded transition-colors ${isReorderMode ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                                            >
+                                                並び替え
+                                            </button>
+                                            <div className="w-px bg-slate-300 dark:bg-slate-600 my-1 mx-0.5"></div>
+                                            <button 
+                                                onClick={() => { setIsEditMode(!isEditMode); setIsReorderMode(false); }}
+                                                className={`text-xs px-2 py-1 rounded transition-colors ${isEditMode ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                                            >
+                                                編集
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {!isEditMode && !isReorderMode && (
+                                        <button onClick={() => setShowTemplateForm(!showTemplateForm)} className="text-xs text-blue-500 hover:text-blue-400 font-medium">
+                                            {showTemplateForm ? '閉じる' : '+ カスタム登録'}
+                                        </button>
+                                    )}
                                 </div>
+                                
+                                {isEditMode && (
+                                    <div className="mb-4 text-xs text-center text-green-600 dark:text-green-400 font-bold animate-pulse">
+                                        編集したい項目をタップしてください
+                                    </div>
+                                )}
 
                                 {showTemplateForm && (
                                     <div className={`mb-4 p-3 rounded-lg border ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 items-center">
+                                            <EmojiPicker 
+                                                emoji={newTemplateEmoji} 
+                                                onEmojiChange={setNewTemplateEmoji}
+                                                isOpen={activeEmojiPicker === 'new-template'}
+                                                onToggle={() => setActiveEmojiPicker(activeEmojiPicker === 'new-template' ? null : 'new-template')}
+                                                onClose={() => setActiveEmojiPicker(null)}
+                                                isDarkMode={isDarkMode}
+                                            />
                                             <input type="text" placeholder="タイトル" className={`flex-1 p-2 rounded text-sm border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'}`} value={newTemplateTitle} onChange={(e) => setNewTemplateTitle(e.target.value)} />
-                                            <select className={`p-2 rounded text-sm border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'}`} value={newTemplateEmoji} onChange={(e) => setNewTemplateEmoji(e.target.value)}>
-                                                {COMMON_EMOJIS.map(e => <option key={e} value={e}>{e}</option>)}
-                                            </select>
                                             <button onClick={createCustomTemplate} disabled={!newTemplateTitle} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm">追加</button>
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="flex flex-wrap gap-2">
-                                    {templates.map(t => (
+                                    {templates.map((t, idx) => (
                                         <div key={t.id} className="group relative">
-                                            <button onClick={() => addActivity(t)} className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all active:scale-95 text-left ${isDarkMode ? 'bg-slate-700 border-slate-600 hover:bg-slate-600' : 'bg-slate-50 border-slate-200 hover:bg-blue-50 hover:border-blue-200'}`}>
+                                            <button 
+                                                onClick={() => handleTemplateClick(t)}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-left 
+                                                    ${isReorderMode ? 'opacity-60 cursor-default' : ''}
+                                                    ${isEditMode ? 'border-green-400 ring-2 ring-green-100 dark:ring-green-900 cursor-pointer animate-pulse-border' : 'active:scale-95'}
+                                                    ${isDarkMode ? 'bg-slate-700 border-slate-600 hover:bg-slate-600' : 'bg-slate-50 border-slate-200 hover:bg-blue-50 hover:border-blue-200'}
+                                                `}
+                                            >
                                                 <span className="text-xl">{t.emoji}</span>
                                                 <span className="font-medium text-sm">{t.title}</span>
+                                                {isEditMode && <Icons.Edit3 size={12} className="ml-1 text-green-500" />}
                                             </button>
-                                            <button onClick={(e) => { e.stopPropagation(); deleteTemplate(t.id); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10">
-                                                <Icons.Trash2 size={10} />
-                                            </button>
+                                            
+                                            {/* Delete Button (Normal Mode) */}
+                                            {!isReorderMode && !isEditMode && (
+                                                <button onClick={(e) => { e.stopPropagation(); deleteTemplate(t.id); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10">
+                                                    <Icons.Trash2 size={10} />
+                                                </button>
+                                            )}
+
+                                            {/* Reorder Controls (Reorder Mode) */}
+                                            {isReorderMode && (
+                                                <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/40 rounded-lg backdrop-blur-[1px]">
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); moveTemplate(idx, -1); }}
+                                                        disabled={idx === 0}
+                                                        className="p-1 bg-white text-slate-800 rounded hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-white"
+                                                    >
+                                                        <Icons.ArrowLeft size={14} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); moveTemplate(idx, 1); }}
+                                                        disabled={idx === templates.length - 1}
+                                                        className="p-1 bg-white text-slate-800 rounded hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-white"
+                                                    >
+                                                        <Icons.ArrowRight size={14} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
-                                    <button onClick={() => addActivity()} className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed transition-all ${isDarkMode ? 'border-slate-600 hover:bg-slate-800 text-slate-400' : 'border-slate-300 hover:bg-slate-100 text-slate-500'}`}>
-                                        <Icons.Plus size={16} />
-                                        <span className="text-sm">空の項目</span>
-                                    </button>
+                                    
+                                    {!isReorderMode && !isEditMode && (
+                                        <button onClick={() => addActivity()} className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed transition-all ${isDarkMode ? 'border-slate-600 hover:bg-slate-800 text-slate-400' : 'border-slate-300 hover:bg-slate-100 text-slate-500'}`}>
+                                            <Icons.Plus size={16} />
+                                            <span className="text-sm">空の項目</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -284,12 +545,14 @@
                                     activities.map(act => (
                                         <div key={act.id} className={`p-4 rounded-xl shadow-sm border transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
                                             <div className="flex items-center gap-3 mb-3">
-                                                <div className="flex-shrink-0 cursor-pointer relative group">
-                                                    <div className="text-2xl">{act.emoji}</div>
-                                                    <select className="absolute inset-0 opacity-0 cursor-pointer" value={act.emoji} onChange={(e) => updateActivity(act.id, 'emoji', e.target.value)}>
-                                                        {COMMON_EMOJIS.map(e => <option key={e} value={e}>{e}</option>)}
-                                                    </select>
-                                                </div>
+                                                <EmojiPicker 
+                                                    emoji={act.emoji} 
+                                                    onEmojiChange={(val) => updateActivity(act.id, 'emoji', val)}
+                                                    isOpen={activeEmojiPicker === act.id}
+                                                    onToggle={() => setActiveEmojiPicker(activeEmojiPicker === act.id ? null : act.id)}
+                                                    onClose={() => setActiveEmojiPicker(null)}
+                                                    isDarkMode={isDarkMode}
+                                                />
                                                 <input type="text" value={act.title} onChange={(e) => updateActivity(act.id, 'title', e.target.value)} placeholder="活動タイトル" className={`flex-1 text-lg font-bold bg-transparent border-b focus:outline-none focus:border-blue-500 transition-colors ${isDarkMode ? 'border-slate-700' : 'border-slate-300'}`} />
                                                 <div className="flex items-center gap-1">
                                                     <button onClick={() => saveAsTemplate(act)} className="p-2 rounded hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-500 transition-colors" title="テンプレートとして保存">
@@ -301,7 +564,19 @@
                                                 </div>
                                             </div>
                                             <div className="pl-2 border-l-2 border-slate-200 dark:border-slate-600 ml-3">
-                                                <textarea value={act.details} onChange={(e) => updateActivity(act.id, 'details', e.target.value)} placeholder="詳細を入力（改行で区切ると自動で └ が付きます）" rows={act.details ? act.details.split('\n').length + 1 : 2} className={`w-full text-sm bg-transparent resize-y focus:outline-none p-2 rounded ${isDarkMode ? 'text-slate-300 placeholder-slate-600' : 'text-slate-600 placeholder-slate-400'}`} />
+                                                <div className="flex justify-end mb-1">
+                                                     <button onClick={() => insertBoldTag(act.id)} className={`text-xs flex items-center gap-1 px-2 py-1 rounded hover:opacity-80 ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`} title="選択範囲を太字にする">
+                                                        <Icons.Bold size={14} /> 太字
+                                                     </button>
+                                                </div>
+                                                <textarea 
+                                                    id={`details-${act.id}`}
+                                                    value={act.details} 
+                                                    onChange={(e) => updateActivity(act.id, 'details', e.target.value)} 
+                                                    placeholder="詳細を入力（改行で区切ると自動で └ が付きます）" 
+                                                    rows={act.details ? act.details.split('\n').length + 1 : 2} 
+                                                    className={`w-full text-sm bg-transparent resize-y focus:outline-none p-2 rounded ${isDarkMode ? 'text-slate-300 placeholder-slate-600' : 'text-slate-600 placeholder-slate-400'}`} 
+                                                />
                                             </div>
                                         </div>
                                     ))
@@ -338,6 +613,110 @@
                         </div>
 
                     </div>
+
+                    {/* Template Editing Modal */}
+                    {editingTemplate && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditingTemplate(null)}>
+                            <div className={`w-full max-w-sm p-5 rounded-xl shadow-2xl ${isDarkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-800'}`} onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                    <Icons.Edit3 size={18} /> 項目を編集
+                                </h3>
+                                
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        <div className="flex-shrink-0">
+                                            <label className="text-xs font-bold block mb-1 opacity-70">アイコン</label>
+                                            <EmojiPicker 
+                                                emoji={editingTemplate.emoji} 
+                                                onEmojiChange={(val) => setEditingTemplate({...editingTemplate, emoji: val})}
+                                                isOpen={activeEmojiPicker === 'edit-template'}
+                                                onToggle={() => setActiveEmojiPicker(activeEmojiPicker === 'edit-template' ? null : 'edit-template')}
+                                                onClose={() => setActiveEmojiPicker(null)}
+                                                isDarkMode={isDarkMode}
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-xs font-bold block mb-1 opacity-70">タイトル</label>
+                                            <input 
+                                                type="text" 
+                                                value={editingTemplate.title} 
+                                                onChange={(e) => setEditingTemplate({...editingTemplate, title: e.target.value})}
+                                                className={`w-full p-2.5 rounded border text-sm font-bold ${isDarkMode ? 'bg-slate-700 border-slate-600' : 'bg-slate-50 border-slate-300'}`}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-bold block mb-1 opacity-70">デフォルトの本文（定型文）</label>
+                                        <textarea 
+                                            value={editingTemplate.defaultDetails || ''} 
+                                            onChange={(e) => setEditingTemplate({...editingTemplate, defaultDetails: e.target.value})}
+                                            rows={4}
+                                            placeholder="ボタンを押した時に最初から入れておきたい内容をここに書けます。"
+                                            className={`w-full p-3 rounded border text-sm ${isDarkMode ? 'bg-slate-700 border-slate-600 placeholder-slate-500' : 'bg-slate-50 border-slate-300 placeholder-slate-400'}`}
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-2 pt-2">
+                                        <button 
+                                            onClick={() => setEditingTemplate(null)}
+                                            className={`flex-1 py-2 rounded text-sm font-bold ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'}`}
+                                        >
+                                            キャンセル
+                                        </button>
+                                        <button 
+                                            onClick={saveTemplateChanges}
+                                            className="flex-1 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold"
+                                        >
+                                            保存する
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Settings Modal */}
+                    {showSettings && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowSettings(false)}>
+                            <div className={`w-full max-w-md p-6 rounded-xl shadow-2xl ${isDarkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-800'}`} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-lg font-bold flex items-center gap-2">
+                                        <Icons.Settings size={20} /> 設定・データ管理
+                                    </h3>
+                                    <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-black/10 rounded-full"><Icons.X size={20}/></button>
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    <div>
+                                        <h4 className="font-bold text-sm mb-2 opacity-80">設定の保存（バックアップ）</h4>
+                                        <p className="text-xs mb-3 opacity-60">現在のテンプレートと入力内容をファイルとして保存します。</p>
+                                        <button onClick={handleExportSettings} className="w-full flex items-center justify-center gap-2 p-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                                            <Icons.Download size={18} /> 設定をファイルに書き出す
+                                        </button>
+                                    </div>
+
+                                    <div className={`h-px w-full ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
+
+                                    <div>
+                                        <h4 className="font-bold text-sm mb-2 opacity-80">設定の復元（読み込み）</h4>
+                                        <p className="text-xs mb-3 opacity-60">保存したバックアップファイル（.json）を読み込みます。</p>
+                                        <label className={`w-full flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed cursor-pointer hover:opacity-70 transition-opacity ${isDarkMode ? 'border-slate-600 bg-slate-700/50' : 'border-slate-300 bg-slate-50'}`}>
+                                            <Icons.Upload size={18} />
+                                            <span>ファイルをを選択して復元</span>
+                                            <input 
+                                                type="file" 
+                                                accept=".json" 
+                                                className="hidden" 
+                                                ref={fileInputRef}
+                                                onChange={handleImportSettings}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
