@@ -9,8 +9,9 @@
     <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <!-- Babel (for JSX) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 【修正箇所1】 Babelのバージョンを安定版(7.23.6)に固定 -->
+    <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
     
     <style>
         body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
@@ -36,7 +37,8 @@
 <body class="bg-slate-50 text-slate-800 transition-colors duration-300">
     <div id="root"></div>
 
-    <script type="text/babel">
+    <!-- 【修正箇所2】 data-type="module" を追加してモジュールエラーを回避 -->
+    <script type="text/babel" data-type="module">
         const { useState, useEffect, useRef } = React;
 
         // --- Icons (SVG Components) ---
@@ -78,12 +80,12 @@
             { id: 't4', title: 'お散歩', emoji: '🚶', defaultDetails: "30分 リフレッシュ" }
         ];
 
-        const COMMON_EMOJIS = ['⚡️', '📘', '💪', '💻', '🚶', '🎨', '🗣️', '📝', '🥗', '💤', '✅', '🔥', '✨', '🚀', '💡', '🎵', '🏃', '🏋️', '🧘', '🍳'];
+        const DEFAULT_EMOJIS = ['⚡️', '📘', '💪', '💻', '🚶', '🎨', '🗣️', '📝', '🥗', '💤', '✅', '🔥', '✨', '🚀', '💡', '🎵', '🏃', '🏋️', '🧘', '🍳'];
 
         // --- Sub Components ---
         
         // Custom Emoji Picker Component
-        const EmojiPicker = ({ emoji, onEmojiChange, isOpen, onToggle, onClose, isDarkMode }) => {
+        const EmojiPicker = ({ emoji, onEmojiChange, isOpen, onToggle, onClose, isDarkMode, customEmojis = DEFAULT_EMOJIS }) => {
             const wrapperRef = useRef(null);
             useEffect(() => {
                 const handleClickOutside = (event) => {
@@ -110,8 +112,8 @@
                                 <input type="text" value={emoji} onChange={(e) => onEmojiChange(e.target.value)} className="bg-transparent w-full text-center font-bold focus:outline-none" placeholder="自由入力" />
                             </div>
                             <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto no-scrollbar">
-                                {COMMON_EMOJIS.map(e => (
-                                    <button key={e} onClick={() => { onEmojiChange(e); onClose(); }} className={`p-1.5 rounded text-lg hover:scale-110 transition-transform ${emoji === e ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                                {customEmojis.map((e, index) => (
+                                    <button key={`${e}-${index}`} onClick={() => { onEmojiChange(e); onClose(); }} className={`p-1.5 rounded text-lg hover:scale-110 transition-transform ${emoji === e ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}>
                                         {e}
                                     </button>
                                 ))}
@@ -130,6 +132,10 @@
             const [isDarkMode, setIsDarkMode] = useState(false);
             const [copied, setCopied] = useState(false);
             
+            // Emoji Customization State
+            const [customEmojis, setCustomEmojis] = useState(DEFAULT_EMOJIS);
+            const [emojiInputText, setEmojiInputText] = useState(DEFAULT_EMOJIS.join(''));
+            
             // New Template Form
             const [showTemplateForm, setShowTemplateForm] = useState(false);
             const [newTemplateTitle, setNewTemplateTitle] = useState('');
@@ -138,6 +144,10 @@
             // Reorder & Edit Mode
             const [isReorderMode, setIsReorderMode] = useState(false);
             const [isEditMode, setIsEditMode] = useState(false);
+            
+            // Drag & Drop State
+            const [draggedIndex, setDraggedIndex] = useState(null);
+            const [dragOverIndex, setDragOverIndex] = useState(null);
             
             // Editing State
             const [editingTemplate, setEditingTemplate] = useState(null);
@@ -162,8 +172,17 @@
             useEffect(() => {
                 const savedActivities = localStorage.getItem('ichijo_activities');
                 const savedTemplates = localStorage.getItem('ichijo_templates');
+                const savedEmojis = localStorage.getItem('ichijo_emojis');
+
                 if (savedActivities) setActivities(JSON.parse(savedActivities));
                 if (savedTemplates) setTemplates(JSON.parse(savedTemplates));
+                if (savedEmojis) {
+                    try {
+                        const parsed = JSON.parse(savedEmojis);
+                        setCustomEmojis(parsed);
+                        setEmojiInputText(parsed.join(''));
+                    } catch(e) { console.error(e) }
+                }
                 
                 if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                     setIsDarkMode(true);
@@ -177,6 +196,10 @@
             useEffect(() => {
                 localStorage.setItem('ichijo_templates', JSON.stringify(templates));
             }, [templates]);
+
+            useEffect(() => {
+                localStorage.setItem('ichijo_emojis', JSON.stringify(customEmojis));
+            }, [customEmojis]);
 
             useEffect(() => {
                 if (isDarkMode) {
@@ -239,6 +262,28 @@
                 setShowTemplateForm(false);
             };
 
+            // Emoji Customization Logic
+            const handleEmojiInputChange = (e) => {
+                const val = e.target.value;
+                setEmojiInputText(val);
+                
+                try {
+                    // 複雑な絵文字（肌の色など）を正しく分割する
+                    const segmenter = new Intl.Segmenter('ja', { granularity: 'grapheme' });
+                    const newEmojis = Array.from(segmenter.segment(val))
+                        .map(s => s.segment)
+                        .filter(s => s.trim() !== '' && s !== ','); // 空白とカンマを除外
+                    // 重複を削除
+                    const uniqueEmojis = [...new Set(newEmojis)];
+                    setCustomEmojis(uniqueEmojis.length > 0 ? uniqueEmojis : DEFAULT_EMOJIS);
+                } catch(err) {
+                    // Fallback
+                    const newEmojis = [...val].filter(s => s.trim() !== '' && s !== ',');
+                    const uniqueEmojis = [...new Set(newEmojis)];
+                    setCustomEmojis(uniqueEmojis.length > 0 ? uniqueEmojis : DEFAULT_EMOJIS);
+                }
+            };
+
             // Bold Tag Insertion
             const insertBoldTag = (id) => {
                 const textarea = document.getElementById(`details-${id}`);
@@ -291,16 +336,43 @@
                 setIsEditMode(false);
             };
 
-            // Reorder Logic
-            const moveTemplate = (index, direction) => {
-                const newTemplates = [...templates];
-                const targetIndex = index + direction;
-                if (targetIndex < 0 || targetIndex >= newTemplates.length) return;
+            // Reorder Logic (Drag and Drop)
+            const handleDragStart = (e, index) => {
+                setDraggedIndex(index);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', index); // 一部ブラウザ用のおまじない
+            };
+
+            const handleDragEnter = (e, index) => {
+                e.preventDefault();
+                setDragOverIndex(index);
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault(); // ドロップを許可する
+                e.dataTransfer.dropEffect = 'move';
+            };
+
+            const handleDrop = (e, dropIndex) => {
+                e.preventDefault();
+                if (draggedIndex === null || draggedIndex === dropIndex) {
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                    return;
+                }
                 
-                const temp = newTemplates[targetIndex];
-                newTemplates[targetIndex] = newTemplates[index];
-                newTemplates[index] = temp;
+                const newTemplates = [...templates];
+                const draggedItem = newTemplates.splice(draggedIndex, 1)[0];
+                newTemplates.splice(dropIndex, 0, draggedItem);
+                
                 setTemplates(newTemplates);
+                setDraggedIndex(null);
+                setDragOverIndex(null);
+            };
+
+            const handleDragEnd = () => {
+                setDraggedIndex(null);
+                setDragOverIndex(null);
             };
 
             // Backup & Restore Logic
@@ -308,6 +380,7 @@
                 const data = {
                     templates: templates,
                     activities: activities, // Optional: saving current draft as well
+                    emojis: customEmojis,
                     version: 1,
                     exportedAt: new Date().toISOString()
                 };
@@ -334,6 +407,10 @@
                         const data = JSON.parse(e.target.result);
                         if (data.templates) setTemplates(data.templates);
                         if (data.activities) setActivities(data.activities); // Restore draft if present
+                        if (data.emojis) {
+                            setCustomEmojis(data.emojis);
+                            setEmojiInputText(data.emojis.join(''));
+                        }
                         alert('設定を復元しました！');
                         setShowSettings(false);
                     } catch (err) {
@@ -465,6 +542,7 @@
                                                 onToggle={() => setActiveEmojiPicker(activeEmojiPicker === 'new-template' ? null : 'new-template')}
                                                 onClose={() => setActiveEmojiPicker(null)}
                                                 isDarkMode={isDarkMode}
+                                                customEmojis={customEmojis}
                                             />
                                             <input type="text" placeholder="タイトル" className={`flex-1 p-2 rounded text-sm border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'}`} value={newTemplateTitle} onChange={(e) => setNewTemplateTitle(e.target.value)} />
                                             <button onClick={createCustomTemplate} disabled={!newTemplateTitle} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm">追加</button>
@@ -474,12 +552,23 @@
 
                                 <div className="flex flex-wrap gap-2">
                                     {templates.map((t, idx) => (
-                                        <div key={t.id} className="group relative">
+                                        <div 
+                                            key={t.id} 
+                                            className={`group relative transition-all duration-200 ${isReorderMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                            draggable={isReorderMode}
+                                            onDragStart={isReorderMode ? (e) => handleDragStart(e, idx) : undefined}
+                                            onDragEnter={isReorderMode ? (e) => handleDragEnter(e, idx) : undefined}
+                                            onDragOver={isReorderMode ? handleDragOver : undefined}
+                                            onDrop={isReorderMode ? (e) => handleDrop(e, idx) : undefined}
+                                            onDragEnd={isReorderMode ? handleDragEnd : undefined}
+                                        >
                                             <button 
                                                 onClick={() => handleTemplateClick(t)}
+                                                disabled={isReorderMode}
                                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-left 
-                                                    ${isReorderMode ? 'opacity-60 cursor-default' : ''}
-                                                    ${isEditMode ? 'border-green-400 ring-2 ring-green-100 dark:ring-green-900 cursor-pointer animate-pulse-border' : 'active:scale-95'}
+                                                    ${isReorderMode ? 'pointer-events-none select-none' : 'active:scale-95'}
+                                                    ${draggedIndex === idx ? 'opacity-20 scale-95' : ''}
+                                                    ${isEditMode ? 'border-green-400 ring-2 ring-green-100 dark:ring-green-900 cursor-pointer animate-pulse-border' : ''}
                                                     ${isDarkMode ? 'bg-slate-700 border-slate-600 hover:bg-slate-600' : 'bg-slate-50 border-slate-200 hover:bg-blue-50 hover:border-blue-200'}
                                                 `}
                                             >
@@ -495,23 +584,18 @@
                                                 </button>
                                             )}
 
-                                            {/* Reorder Controls (Reorder Mode) */}
-                                            {isReorderMode && (
-                                                <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/40 rounded-lg backdrop-blur-[1px]">
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); moveTemplate(idx, -1); }}
-                                                        disabled={idx === 0}
-                                                        className="p-1 bg-white text-slate-800 rounded hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-white"
-                                                    >
-                                                        <Icons.ArrowLeft size={14} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); moveTemplate(idx, 1); }}
-                                                        disabled={idx === templates.length - 1}
-                                                        className="p-1 bg-white text-slate-800 rounded hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-white"
-                                                    >
-                                                        <Icons.ArrowRight size={14} />
-                                                    </button>
+                                            {/* Reorder Mode Visual Overlay */}
+                                            {isReorderMode && draggedIndex !== idx && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/5 dark:bg-white/5 rounded-lg pointer-events-none">
+                                                    <Icons.GripVertical size={18} className="text-slate-500 dark:text-slate-400 opacity-50" />
+                                                </div>
+                                            )}
+
+                                            {/* Insertion Indicator (Vertical Dashed Line) */}
+                                            {isReorderMode && dragOverIndex === idx && draggedIndex !== idx && (
+                                                <div className={`absolute top-0 bottom-0 w-0 border-l-2 border-dashed border-blue-500 z-20 ${draggedIndex < idx ? '-right-[5px]' : '-left-[5px]'}`}>
+                                                    <div className="absolute -top-1 -left-[3px] w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                                    <div className="absolute -bottom-1 -left-[3px] w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
                                                 </div>
                                             )}
                                         </div>
@@ -552,6 +636,7 @@
                                                     onToggle={() => setActiveEmojiPicker(activeEmojiPicker === act.id ? null : act.id)}
                                                     onClose={() => setActiveEmojiPicker(null)}
                                                     isDarkMode={isDarkMode}
+                                                    customEmojis={customEmojis}
                                                 />
                                                 <input type="text" value={act.title} onChange={(e) => updateActivity(act.id, 'title', e.target.value)} placeholder="活動タイトル" className={`flex-1 text-lg font-bold bg-transparent border-b focus:outline-none focus:border-blue-500 transition-colors ${isDarkMode ? 'border-slate-700' : 'border-slate-300'}`} />
                                                 <div className="flex items-center gap-1">
@@ -633,6 +718,7 @@
                                                 onToggle={() => setActiveEmojiPicker(activeEmojiPicker === 'edit-template' ? null : 'edit-template')}
                                                 onClose={() => setActiveEmojiPicker(null)}
                                                 isDarkMode={isDarkMode}
+                                                customEmojis={customEmojis}
                                             />
                                         </div>
                                         <div className="flex-1">
@@ -688,6 +774,20 @@
                                 </div>
                                 
                                 <div className="space-y-6">
+                                    <div>
+                                        <h4 className="font-bold text-sm mb-2 opacity-80">絵文字パレットのカスタマイズ</h4>
+                                        <p className="text-xs mb-3 opacity-60">絵文字を連続で入力すると、パレットの候補が自動で更新されます。</p>
+                                        <textarea
+                                            value={emojiInputText}
+                                            onChange={handleEmojiInputChange}
+                                            rows={3}
+                                            className={`w-full p-2 rounded border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-700 border-slate-600' : 'bg-slate-50 border-slate-300'}`}
+                                            placeholder="絵文字を入力（例：⚡️📘💪💻）"
+                                        />
+                                    </div>
+
+                                    <div className={`h-px w-full ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
+
                                     <div>
                                         <h4 className="font-bold text-sm mb-2 opacity-80">設定の保存（バックアップ）</h4>
                                         <p className="text-xs mb-3 opacity-60">現在のテンプレートと入力内容をファイルとして保存します。</p>
